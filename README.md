@@ -20,9 +20,9 @@ Every notebook is saved **with its outputs**, so you can read it before running 
    ```
 2. **A chat model** for notebooks 02–04. Each of these notebooks starts with a backend switch:
    ```python
-   BACKEND = "ollama"  # "ollama" (local) or "api" (OpenAI-compatible cloud API)
+   BACKEND = "ollama"  # "ollama" (local), "gemini" (GEMINI_KEY in .env) or "api" (any OpenAI-compatible API)
    ```
-   The rest of the notebook is identical for both options.
+   The rest of the notebook is identical for every option.
 
    **Option A: Ollama (local, free, private).** Install it from [ollama.com](https://ollama.com), then pull the model:
    ```bash
@@ -30,7 +30,13 @@ Every notebook is saved **with its outputs**, so you can read it before running 
    ```
    The `mlx` build only runs on Apple Silicon. On other machines, pull another tool-calling model (for example `ollama pull gemma4:e2b` or `qwen3.5`) and set `OLLAMA_MODEL` to its name.
 
-   **Option B: a cloud API.** Any OpenAI-compatible provider works. Set three environment variables *before* starting Jupyter:
+   **Option B: Google Gemini.** Get a key from [Google AI Studio](https://aistudio.google.com/apikey) and put it in a `.env` file in the repo folder:
+   ```bash
+   GEMINI_KEY=your-key
+   ```
+   Then set `BACKEND = "gemini"`. The default model is `gemini-flash-lite-latest`; add `GEMINI_MODEL=...` to `.env` to use another one. `.env` is git-ignored, so your key stays out of the repo.
+
+   **Option C: another cloud API.** Any OpenAI-compatible provider works. Set three environment variables *before* starting Jupyter:
    ```bash
    export LLM_API_KEY="your-key"
    export LLM_API_MODEL="a-tool-calling-model-name"   # from your provider's model list
@@ -39,7 +45,6 @@ Every notebook is saved **with its outputs**, so you can read it before running 
    | Provider | `LLM_API_BASE_URL` |
    |---|---|
    | OpenAI | `https://api.openai.com/v1` |
-   | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` |
    | Groq | `https://api.groq.com/openai/v1` |
    | OpenRouter | `https://openrouter.ai/api/v1` |
 
@@ -59,7 +64,7 @@ notebooks/
   02_rag.ipynb
   03_tool_calling_and_mcp.ipynb
   04_ai_agents.ipynb
-  llm_client.py       # llm.chat(): one interface for Ollama or any OpenAI-compatible API
+  llm_client.py       # llm.chat(): one interface for Ollama, Gemini or any OpenAI-compatible API
   rag_utils.py        # the retriever from notebook 02, reused in notebook 04
   simple_mcp.py       # tiny FastMCP file-system server used in notebook 03
 slides/               # lecture slides (PDF)

@@ -1,15 +1,22 @@
-"""One `chat()` function for notebooks 02–04, backed by either Ollama or an OpenAI-compatible API.
+"""One `chat()` function for notebooks 02–04, backed by Ollama, Google Gemini or any OpenAI-compatible API.
 
     import llm_client as llm
     llm.configure("ollama")   # local model through Ollama
-    llm.configure("api")      # any OpenAI-compatible cloud API (OpenAI, Gemini, Groq, OpenRouter, ...)
+    llm.configure("gemini")   # Google Gemini, using GEMINI_KEY from the environment or a .env file
+    llm.configure("api")      # any OpenAI-compatible cloud API (OpenAI, Groq, OpenRouter, ...)
 
     response = llm.chat(messages=[...], tools=[...])
     response.message.content
     response.message.tool_calls[0].function.name / .arguments (a dict)
 
-Both backends return the same shape as `ollama.chat`, so the notebooks' code does not change when you switch.
-The "api" backend reads its settings from environment variables unless you pass them to `configure()`:
+All backends return the same shape as `ollama.chat`, so the notebooks' code does not change when you switch.
+Settings are read from environment variables (or a `.env` file in this folder or a parent) unless you pass
+them to `configure()`:
+
+    GEMINI_KEY        your Google AI Studio key, for the "gemini" backend
+    GEMINI_MODEL      optional; defaults to gemini-flash-lite-latest
+
+The "api" backend reads:
 
     LLM_API_KEY       your provider's API key (falls back to OPENAI_API_KEY; asked for interactively if missing)
     LLM_API_BASE_URL  e.g. https://api.openai.com/v1 (default)
@@ -25,8 +32,17 @@ from dataclasses import dataclass, field
 from getpass import getpass
 from typing import Any, Dict, List, Optional
 
+try:
+    from dotenv import find_dotenv, load_dotenv
+
+    load_dotenv(find_dotenv(usecwd=True))  # picks up GEMINI_KEY etc. from a .env file, if there is one
+except ImportError:
+    pass
+
 DEFAULT_OLLAMA_MODEL = "gemma4:e2b-mlx"
 DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest"
 
 _config: Dict[str, Any] = {"backend": "ollama", "model": DEFAULT_OLLAMA_MODEL}
 _openai_client = None
@@ -43,6 +59,7 @@ class Function:
 class ToolCall:
     function: Function
     id: str = ""
+    raw: Optional[Dict[str, Any]] = field(default=None, repr=False)  # provider data to send back (e.g. Gemini thought signatures)
 
 
 @dataclass
@@ -63,26 +80,43 @@ class ChatResponse:
 
 def configure(backend: str = "ollama", model: Optional[str] = None,
               base_url: Optional[str] = None, api_key: Optional[str] = None) -> None:
-    """Choose where chat() sends requests: "ollama" (local) or "api" (OpenAI-compatible cloud API)."""
+    """Choose where chat() sends requests: "ollama" (local), "gemini" or "api" (OpenAI-compatible cloud API)."""
     global _openai_client
     if backend == "ollama":
         _config.update(backend="ollama", model=model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL))
         _openai_client = None
+    elif backend == "gemini":
+        # Gemini speaks the OpenAI protocol too, so it is the "api" backend with Google's URL and key
+        _connect(
+            base_url=base_url or GEMINI_BASE_URL,
+            api_key=api_key or os.getenv("GEMINI_KEY") or os.getenv("GEMINI_API_KEY") or getpass("Gemini API key: "),
+            model=model or os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
+            backend="gemini",
+        )
     elif backend == "api":
-        from openai import OpenAI
-
         model = model or os.getenv("LLM_API_MODEL")
         if not model:
             raise ValueError(
                 "No API model set. Pass configure('api', model='<model name>') or set the LLM_API_MODEL "
                 "environment variable to a tool-calling model from your provider's docs."
             )
-        base_url = base_url or os.getenv("LLM_API_BASE_URL", DEFAULT_API_BASE_URL)
-        api_key = api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or getpass("API key: ")
-        _openai_client = OpenAI(base_url=base_url, api_key=api_key)
-        _config.update(backend="api", model=model, base_url=base_url)
+        _connect(
+            base_url=base_url or os.getenv("LLM_API_BASE_URL", DEFAULT_API_BASE_URL),
+            api_key=api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or getpass("API key: "),
+            model=model,
+            backend="api",
+        )
     else:
-        raise ValueError(f"Unknown backend {backend!r}: use 'ollama' or 'api'")
+        raise ValueError(f"Unknown backend {backend!r}: use 'ollama', 'gemini' or 'api'")
+
+
+def _connect(base_url: str, api_key: str, model: str, backend: str) -> None:
+    global _openai_client
+    from openai import OpenAI
+
+    # Generous retries with backoff: cloud APIs return 429/503 under load (e.g. a whole class at once)
+    _openai_client = OpenAI(base_url=base_url, api_key=api_key, max_retries=8)
+    _config.update(backend=backend, model=model, base_url=base_url)
 
 
 def current_model() -> str:
@@ -92,6 +126,8 @@ def current_model() -> str:
 def describe() -> str:
     if _config["backend"] == "ollama":
         return f"Backend: Ollama (local)  |  model: {_config['model']}"
+    if _config["backend"] == "gemini":
+        return f"Backend: Google Gemini  |  model: {_config['model']}"
     return f"Backend: OpenAI-compatible API at {_config['base_url']}  |  model: {_config['model']}"
 
 
@@ -118,7 +154,11 @@ def _chat_openai(messages: List[Any], tools: Optional[List[Dict]], model: str, o
     completion = _openai_client.chat.completions.create(**kwargs)
     choice = completion.choices[0].message
     tool_calls = [
-        ToolCall(id=tc.id, function=Function(name=tc.function.name, arguments=json.loads(tc.function.arguments or "{}")))
+        ToolCall(
+            id=tc.id,
+            function=Function(name=tc.function.name, arguments=json.loads(tc.function.arguments or "{}")),
+            raw=tc.model_dump(exclude_none=True),
+        )
         for tc in (choice.tool_calls or [])
     ]
     usage = completion.usage
@@ -145,8 +185,8 @@ def _to_openai_messages(messages: List[Any]) -> List[Dict[str, Any]]:
             entry: Dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
             if msg.tool_calls:
                 entry["tool_calls"] = [
-                    {"id": tc.id, "type": "function",
-                     "function": {"name": tc.function.name, "arguments": json.dumps(tc.function.arguments)}}
+                    tc.raw or {"id": tc.id, "type": "function",
+                               "function": {"name": tc.function.name, "arguments": json.dumps(tc.function.arguments)}}
                     for tc in msg.tool_calls
                 ]
                 pending = list(msg.tool_calls)

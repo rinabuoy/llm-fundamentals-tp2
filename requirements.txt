@@ -4,6 +4,7 @@ matplotlib
 numpy
 ollama
 openai
+python-dotenv
 fastmcp
 ddgs
 jupyterlab
