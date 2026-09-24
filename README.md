@@ -68,7 +68,6 @@ notebooks/
   rag_utils.py        # the retriever from notebook 02, reused in notebook 04
   simple_mcp.py       # tiny FastMCP file-system server used in notebook 03
 slides/               # lecture slides (PDF)
-reference/TP_full.ipynb   # the original all-in-one practice notebook
 ```
 
 ## Notes
