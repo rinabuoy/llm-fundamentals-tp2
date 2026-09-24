@@ -4,6 +4,7 @@ matplotlib
 numpy
 rank_bm25
 ollama
+openai
 fastmcp
 ddgs
 jupyterlab
