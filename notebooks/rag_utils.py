@@ -1,19 +1,17 @@
-"""Shared retrieval helpers for the RAG notebooks (05, 06, 11).
+"""Shared retrieval helpers for the RAG notebooks (02 and 04).
 
-Notebook 04 builds every piece below step by step; later notebooks import
-them from here so they can focus on their own topic.
+Notebook 02 builds vector search step by step; the pipeline and agent
+sections import it from here so they can focus on their own topic.
 """
-import re
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from rank_bm25 import BM25Okapi
 from transformers import AutoModel, AutoTokenizer
 
 EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 
-# The same eight-document pet knowledge base used in notebook 04
+# The same eight-document pet knowledge base used in notebook 02
 PET_CORPUS: List[Dict[str, str]] = [
     {"id": "d1", "text": "The Siberian Husky is a medium-sized working dog breed originally bred for sled pulling in cold climates."},
     {"id": "d2", "text": "Persian cats have long, thick fur and a calm, gentle temperament, making them popular indoor pets."},
@@ -27,10 +25,6 @@ PET_CORPUS: List[Dict[str, str]] = [
 
 _embed_tokenizer = None
 _embed_model = None
-
-
-def _tokenize(text: str) -> List[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
 
 
 def embed_texts(texts: List[str]) -> np.ndarray:
@@ -48,36 +42,17 @@ def embed_texts(texts: List[str]) -> np.ndarray:
     return torch.nn.functional.normalize(pooled, p=2, dim=1).numpy()
 
 
-def reciprocal_rank_fusion(rankings: List[List[str]], k: int = 60) -> List[Tuple[str, float]]:
-    """Fuse several ranked doc_id lists into one, scoring by 1/(k + rank) summed across rankings."""
-    fused_scores: Dict[str, float] = {}
-    for ranking in rankings:
-        for rank, doc_id in enumerate(ranking, start=1):
-            fused_scores[doc_id] = fused_scores.get(doc_id, 0.0) + 1.0 / (k + rank)
-    return sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-
-
-class HybridRetriever:
-    """BM25 + embedding search over a list of {"id", "text"} documents, fused with RRF."""
+class VectorRetriever:
+    """Embedding search over a list of {"id", "text"} documents, ranked by cosine similarity."""
 
     def __init__(self, corpus: List[Dict[str, str]]):
         self.corpus = corpus
         self.by_id: Dict[str, str] = {doc["id"]: doc["text"] for doc in corpus}
         self.doc_ids = [doc["id"] for doc in corpus]
-        self.bm25 = BM25Okapi([_tokenize(doc["text"]) for doc in corpus])
-        self.embeddings = embed_texts([doc["text"] for doc in corpus])
-
-    def lexical_search(self, query: str, top_k: Optional[int] = None) -> List[Tuple[str, float]]:
-        scores = self.bm25.get_scores(_tokenize(query))
-        ranked = sorted(zip(self.doc_ids, scores), key=lambda x: x[1], reverse=True)
-        return ranked[:top_k]
+        self.embeddings = embed_texts([doc["text"] for doc in corpus])  # embed the corpus once
 
     def vector_search(self, query: str, top_k: Optional[int] = None) -> List[Tuple[str, float]]:
+        # embed_texts L2-normalizes, so the dot product IS the cosine similarity
         similarities = self.embeddings @ embed_texts([query])[0]
         ranked = sorted(zip(self.doc_ids, similarities), key=lambda x: x[1], reverse=True)
         return ranked[:top_k]
-
-    def hybrid_search(self, query: str, top_k: Optional[int] = 3) -> List[Tuple[str, float]]:
-        lexical_ranking = [doc_id for doc_id, _ in self.lexical_search(query)]
-        vector_ranking = [doc_id for doc_id, _ in self.vector_search(query)]
-        return reciprocal_rank_fusion([lexical_ranking, vector_ranking])[:top_k]

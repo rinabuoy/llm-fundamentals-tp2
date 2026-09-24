@@ -5,7 +5,7 @@ Hands-on notebooks for **TP2.0 AI & Data Science, Special Lecture I** (Rina Buoy
 | # | Notebook | Slides | What you'll do |
 |---|---|---|---|
 | 01 | [LLM Basics](notebooks/01_llm_basics.ipynb) | 4–20 | Tokenize text, look inside a forward pass, compute the next-token loss by hand, write greedy / top-k / top-p / temperature sampling, and compare a base model with its instruction-tuned twin |
-| 02 | [Retrieval-Augmented Generation](notebooks/02_rag.ipynb) | 21–37 | Chunk documents, build BM25, embedding and hybrid (RRF) retrievers, score them with Precision@k, MRR and NDCG, then run retrieve → augment → generate |
+| 02 | [Retrieval-Augmented Generation](notebooks/02_rag.ipynb) | 21–37 | Chunk and embed documents, build a vector-search retriever, score it with Precision@k, MRR and NDCG, then run retrieve → augment → generate |
 | 03 | [Tool Calling & MCP](notebooks/03_tool_calling_and_mcp.ipynb) | 38–53 | Call tools via prompting, then natively with JSON Schema, then through local and remote MCP servers |
 | 04 | [AI Agents](notebooks/04_ai_agents.ipynb) | 54–67 | Build a ReAct loop and use it for a thermostat agent, a multi-tool agent, an agentic-RAG agent and a web-search agent |
 

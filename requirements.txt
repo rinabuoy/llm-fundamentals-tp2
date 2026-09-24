@@ -2,7 +2,6 @@ torch
 transformers>=4.45
 matplotlib
 numpy
-rank_bm25
 ollama
 openai
 fastmcp
