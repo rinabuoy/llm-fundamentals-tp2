@@ -6,7 +6,7 @@ Hands-on notebooks for **TP2.0 AI & Data Science, Special Lecture I** (Rina Buoy
 |---|---|---|
 | 01 | [LLM Basics](notebooks/01_llm_basics.ipynb) | Tokenize text, look inside a forward pass, compute the next-token loss by hand, write greedy / top-k / top-p / temperature sampling, and compare a base model with its instruction-tuned twin |
 | 02 | [Retrieval-Augmented Generation](notebooks/02_rag.ipynb) | Chunk and embed documents, build a vector-search retriever, then run retrieve → augment → generate |
-| 03 | [Tool Calling & MCP](notebooks/03_tool_calling_and_mcp.ipynb) | Call tools via prompting, then natively with JSON Schema, then through local and remote MCP servers |
+| 03 | [Tool Calling & MCP](notebooks/03_tool_calling_and_mcp.ipynb) | Call tools via prompting, then natively with JSON Schema, then through an MCP server |
 | 04 | [AI Agents](notebooks/04_ai_agents.ipynb) | Build a ReAct loop and use it for a thermostat agent, a multi-tool agent, an agentic-RAG agent and a web-search agent |
 
 Every notebook is saved **with its outputs**, so you can read it before running anything.
@@ -75,4 +75,3 @@ reference/TP_full.ipynb   # the original all-in-one practice notebook
 
 - LLM outputs vary from run to run (and web search results change daily), so your outputs won't match the saved ones exactly.
 - `simple_mcp.py` exposes an `edit_file_tool` that can **write files** on your machine. Only run it locally, for learning.
-- The second MCP server in notebook 03 is a hosted Hugging Face Space. If it's asleep, the first request can take a minute.
